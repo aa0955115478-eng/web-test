@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloud Tasks - 跨裝置即時同步待辦清單</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Google Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #090d16;
+            color: #f3f4f6;
+        }
+        /* Custom scrollbar for beautiful UI */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+<body class="min-h-screen relative overflow-x-hidden flex items-center justify-center p-4">
+
+    <!-- Ambient light glow backgrounds behind the interface -->
+    <div class="absolute w-96 h-96 bg-blue-600/10 rounded-full blur-[120px] top-10 left-1/4 -translate-x-1/2 pointer-events-none"></div>
+    <div class="absolute w-[400px] h-[400px] bg-indigo-600/10 rounded-full blur-[150px] bottom-10 right-1/4 translate-x-1/2 pointer-events-none"></div>
+
+    <div id="app" class="w-full max-w-md z-10" v-cloak>
+        <!-- GLOBAL LOADER -->
+        <div v-if="globalLoading" class="flex flex-col items-center justify-center p-8 text-slate-400">
+            <svg class="animate-spin h-10 w-10 text-blue-500 mb-4" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p class="text-sm">載入雲端服務中...</p>
+        </div>
+
+        <!-- SPLASH / LOGIN SCREEN (Matches {D4B96A81-C59D-4343-9D23-56BB15EE146E}.png) -->
+        <transition name="fade" mode="out-in">
+            <div v-if="!isLoggedIn && !globalLoading" class="w-full">
+                <div class="bg-slate-900/40 backdrop-blur-2xl border border-white/10 rounded-[32px] p-8 md:p-10 text-center shadow-[0_24px_60px_-15px_rgba(0,0,0,0.7)]">
+                    <!-- App Logo Icon -->
+                    <div class="flex justify-center mb-6">
+                        <div class="w-20 h-20 rounded-3xl bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center shadow-[0_12px_24px_-8px_rgba(59,130,246,0.6)]">
+                            <!-- Checklist SVG Icon matching the original -->
+                            <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+                            </svg>
+                        </div>
+                    </div>
+
+                    <!-- Title & Slogan -->
+                    <h1 class="text-3xl font-bold text-white tracking-wide mb-3">Cloud Tasks</h1>
+                    <p class="text-slate-400 text-sm leading-relaxed mb-8">
+                        跨裝置即時同步，讓效率無所不在
+                    </p>
+
+                    <!-- CTA Login Button -->
+                    <button 
+                        @click="handleLogin" 
+                        :disabled="authLoading"
+                        class="w-full py-4 px-6 rounded-2xl bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 text-white font-medium transition-all duration-300 transform active:scale-[0.98] shadow-[0_8px_20px_-4px_rgba(37,99,235,0.5)] flex items-center justify-center gap-2"
+                    >
+                        <span v-if="authLoading">
+                            <svg class="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </span>
+                        <span v-else class="flex items-center gap-2">
+                            立即開始使用
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path>
+                            </svg>
+                        </span>
+                    </button>
+                    
+                    <!-- Notification Box (Instead of Alert) -->
+                    <div v-if="errorMsg" class="mt-4 p-3 bg-red-950/40 border border-red-500/30 text-red-400 text-xs rounded-xl">
+                        {{ errorMsg }}
+                    </div>
+                </div>
+            </div>
+        </transition>
+
+        <!-- MAIN DASHBOARD SCREEN (Matches {E01451FB-D765-4BA0-9BAE-18DD17B7CE0B}.png) -->
+        <transition name="fade" mode="out-in">
+            <div v-if="isLoggedIn && !globalLoading" class="w-full space-y-6">
+                <!-- Header Component -->
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-11 h-11 rounded-xl bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center shadow-[0_4px_12px_rgba(59,130,246,0.3)]">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <h2 class="text-xl font-bold text-white tracking-wide">我的任務</h2>
+                            <!-- Sync status indicator mimicking images exactly -->
+                            <div class="flex items-center gap-1.5 mt-0.5">
+                                <span class="relative flex h-2 w-2">
+                                    <span :class="syncing ? 'bg-amber-400' : 'bg-green-500'" class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"></span>
+                                    <span :class="syncing ? 'bg-amber-500' : 'bg-green-500'" class="relative inline-flex rounded-full h-2 w-2"></span>
+                                </span>
+                                <span class="text-[10px] font-mono tracking-wider text-slate-400 uppercase">
+                                    {{ syncing ? 'SYNCING...' : 'SYNCED: ' + userIdShort }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sign Out Button -->
+                    <button 
+                        @click="handleSignOut" 
+                        class="p-2.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-slate-400 hover:text-white transition-all active:scale-95"
+                        title="登出"
+                    >
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Today Completion Stats Card (Matches the top card in image) -->
+                <div class="bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-3xl p-6 flex justify-between items-center shadow-lg relative overflow-hidden group">
+                    <div class="space-y-1">
+                        <p class="text-xs text-slate-400 font-medium">今日完成率</p>
+                        <div class="flex items-baseline gap-1">
+                            <span class="text-4xl font-extrabold tracking-tight text-white transition-all duration-500">
+                                {{ completionRate }}%
+                            </span>
+                        </div>
+                    </div>
+                    <!-- Trophy icon with dynamic pulsing effect when all tasks completed -->
+                    <div 
+                        :class="completionRate === 100 && todos.length > 0 ? 'bg-amber-500/20 text-amber-400 scale-110 shadow-[0_0_20px_rgba(245,158,11,0.2)]' : 'bg-white/5 text-slate-500'" 
+                        class="w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-500"
+                    >
+                        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5a2 2 0 10-2 2h2zm-2 4h4M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Add Task Form Container -->
+                <form @submit.prevent="addTodo" class="relative group">
+                    <div class="bg-slate-900/40 backdrop-blur-xl border border-white/10 focus-within:border-blue-500/50 rounded-2xl p-2.5 flex items-center transition-all shadow-md">
+                        <input 
+                            type="text" 
+                            v-model="newTodoText" 
+                            placeholder="輸入新任務..." 
+                            class="bg-transparent flex-1 pl-3 pr-2 py-2 text-white placeholder-slate-500 focus:outline-none text-sm"
+                            maxlength="100"
+                            required
+                        >
+                        <button 
+                            type="submit" 
+                            class="w-10 h-10 rounded-xl bg-blue-600 hover:bg-blue-500 flex items-center justify-center text-white font-bold transition-all duration-200 active:scale-90 shadow-md"
+                        >
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Custom Filter Tabs to maintain visual organization -->
+                <div class="flex items-center justify-between px-1 text-xs">
+                    <div class="flex gap-2 text-slate-400">
+                        <button 
+                            v-for="tab in ['all', 'active', 'completed']" 
+                            :key="tab"
+                            @click="currentTab = tab"
+                            :class="currentTab === tab ? 'text-blue-400 font-semibold border-b border-blue-400 pb-1' : 'hover:text-slate-200 pb-1'"
+                            class="capitalize transition-colors"
+                        >
+                            {{ tab === 'all' ? '全部' : (tab === 'active' ? '未完成' : '已完成') }}
+                            ({{ getCount(tab) }})
+                        </button>
+                    </div>
+                    <button 
+                        v-if="hasCompleted" 
+                        @click="clearCompleted" 
+                        class="text-red-400/80 hover:text-red-400 transition-colors"
+                    >
+                        清除已完成
+                    </button>
+                </div>
+
+                <!-- To-Do List Area -->
+                <div class="space-y-3 min-h-[250px]">
+                    <transition-group name="list" tag="div" class="space-y-3">
+                        <div 
+                            v-for="todo in filteredTodos" 
+                            :key="todo.id" 
+                            class="group bg-slate-900/30 backdrop-blur-md border border-white/5 hover:border-white/10 rounded-2xl p-4 flex items-center justify-between gap-3 transition-all duration-200"
+                        >
+                            <div class="flex items-center gap-3.5 flex-1 min-w-0">
+                                <!-- Checkbox Circle Container -->
+                                <button 
+                                    @click="toggleTodo(todo)"
+                                    type="button"
+                                    class="w-6 h-6 rounded-full border flex items-center justify-center transition-all duration-200 flex-shrink-0"
+                                    :class="todo.completed ? 'bg-blue-600 border-blue-600 text-white' : 'border-white/20 hover:border-blue-500/60 bg-white/5'"
+                                >
+                                    <svg v-if="todo.completed" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+                                    </svg>
+                                </button>
+
+                                <!-- Text Display / Edit Mode -->
+                                <div class="flex-1 min-w-0">
+                                    <input 
+                                        v-if="editingId === todo.id" 
+                                        :id="'edit-input-' + todo.id"
+                                        type="text" 
+                                        v-model="editingText"
+                                        @blur="saveEdit(todo)"
+                                        @keyup.enter="saveEdit(todo)"
+                                        @keyup.escape="cancelEdit"
+                                        class="bg-white/10 border border-white/20 rounded px-2 py-0.5 text-sm text-white w-full focus:outline-none focus:border-blue-500"
+                                    >
+                                    <span 
+                                        v-else 
+                                        @dblclick="startEdit(todo)"
+                                        :class="todo.completed ? 'line-through text-slate-500 decoration-slate-600' : 'text-slate-100'"
+                                        class="text-sm cursor-pointer select-none truncate block hover:text-blue-300 transition-colors"
+                                        title="雙擊可以修改任務"
+                                    >
+                                        {{ todo.text }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Delete Action Block -->
+                            <button 
+                                @click="deleteTodo(todo.id)" 
+                                class="p-1.5 rounded-lg bg-white/0 hover:bg-red-500/10 text-slate-500 hover:text-red-400 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 flex-shrink-0"
+                                title="刪除任務"
+                            >
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </transition-group>
+
+                    <!-- Empty State View (Matches bottom section of images) -->
+                    <div v-if="filteredTodos.length === 0" class="flex flex-col items-center justify-center py-16 text-center space-y-4">
+                        <div class="w-16 h-16 rounded-full bg-slate-900/50 border border-white/5 flex items-center justify-center shadow-inner relative group-hover:scale-105 transition-transform duration-300">
+                            <!-- Glowing dynamic sparkle svg -->
+                            <svg class="w-8 h-8 text-slate-600 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path>
+                            </svg>
+                        </div>
+                        <p class="text-sm text-slate-400 font-medium">萬事俱備，只欠任務！</p>
+                    </div>
+                </div>
+                
+                <!-- Feedback Toast system nested nicely -->
+                <div v-if="notification" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 border border-white/10 px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-xl z-50 text-xs text-white">
+                    <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                    {{ notification }}
+                </div>
+            </div>
+        </transition>
+    </div>
+
+    <!-- Vue 3 Library -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+
+    <!-- Firestore Realtime Sync Logic Integration -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, collection, onSnapshot, addDoc, updateDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global environment fallbacks
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'cloud-tasks-app';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' 
+            ? JSON.parse(__firebase_config) 
+            : {
+                apiKey: "mock-api-key",
+                authDomain: "mock-auth-domain",
+                projectId: "mock-project",
+                storageBucket: "mock-storage-bucket",
+                messagingSenderId: "mock-sender",
+                appId: "mock-app-id"
+            };
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // Initialize Firebase
+        const firebaseApp = initializeApp(firebaseConfig);
+        const auth = getAuth(firebaseApp);
+        const db = getFirestore(firebaseApp);
+
+        const { createApp, ref, computed, onMounted, nextTick } = Vue;
+
+        createApp({
+            setup() {
+                // Application States
+                const isLoggedIn = ref(false);
+                const globalLoading = ref(true);
+                const authLoading = ref(false);
+                const syncing = ref(false);
+                const userId = ref("");
+                const todos = ref([]);
+                const newTodoText = ref("");
+                const currentTab = ref("all");
+                const errorMsg = ref("");
+                const notification = ref("");
+                
+                // Editing variables
+                const editingId = ref(null);
+                const editingText = ref("");
+
+                // Firestore Unsubscribe Listener Reference
+                let unsubscribeTodos = null;
+
+                // short formatted ID for displaying
+                const userIdShort = computed(() => {
+                    if (!userId.value) return "...";
+                    return userId.value.substring(0, 8) + "...";
+                });
+
+                // Calculate completion rate safely
+                const completionRate = computed(() => {
+                    if (todos.value.length === 0) return 0;
+                    const completedCount = todos.value.filter(t => t.completed).length;
+                    return Math.round((completedCount / todos.value.length) * 100);
+                });
+
+                // Filtered todo items list
+                const filteredTodos = computed(() => {
+                    if (currentTab.value === 'active') {
+                        return todos.value.filter(t => !t.completed);
+                    } else if (currentTab.value === 'completed') {
+                        return todos.value.filter(t => t.completed);
+                    }
+                    return todos.value;
+                });
+
+                // Helper to count tasks easily
+                const getCount = (tab) => {
+                    if (tab === 'active') return todos.value.filter(t => !t.completed).length;
+                    if (tab === 'completed') return todos.value.filter(t => t.completed).length;
+                    return todos.value.length;
+                };
+
+                const hasCompleted = computed(() => {
+                    return todos.value.some(t => t.completed);
+                });
+
+                // Toast helper block
+                const showToast = (msg) => {
+                    notification.value = msg;
+                    setTimeout(() => {
+                        if (notification.value === msg) {
+                            notification.value = "";
+                        }
+                    }, 3000);
+                };
+
+                // Main Auth State Monitor
+                onMounted(() => {
+                    onAuthStateChanged(auth, (user) => {
+                        if (user) {
+                            userId.value = user.uid;
+                            isLoggedIn.value = true;
+                            setupRealtimeSync(user.uid);
+                        } else {
+                            userId.value = "";
+                            isLoggedIn.value = false;
+                            todos.value = [];
+                            if (unsubscribeTodos) {
+                                unsubscribeTodos();
+                                unsubscribeTodos = null;
+                            }
+                        }
+                        globalLoading.value = false;
+                    });
+                });
+
+                // Trigger Sign In logic based on image action
+                const handleLogin = async () => {
+                    authLoading.value = true;
+                    errorMsg.value = "";
+                    try {
+                        // Priority custom token login, then fallback to anonymous
+                        if (initialAuthToken) {
+                            await signInWithCustomToken(auth, initialAuthToken);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                        showToast("登入成功，已連接雲端同步 ☁️");
+                    } catch (error) {
+                        console.error("Auth Error:", error);
+                        errorMsg.value = "連線失敗，請檢查網路。(" + error.message + ")";
+                    } finally {
+                        authLoading.value = false;
+                    }
+                };
+
+                // Signs out current user
+                const handleSignOut = async () => {
+                    try {
+                        await signOut(auth);
+                        showToast("已成功登出");
+                    } catch (err) {
+                        console.error("Sign Out Error:", err);
+                    }
+                };
+
+                // Setup Realtime Synchronizer (Firestore -> User State)
+                const setupRealtimeSync = (uid) => {
+                    syncing.value = true;
+                    
+                    // RULE 1 compliant paths only
+                    const collectionRef = collection(db, 'artifacts', appId, 'users', uid, 'todos');
+                    
+                    // Simple query only (Rule 2 compliant)
+                    unsubscribeTodos = onSnapshot(collectionRef, (snapshot) => {
+                        const items = [];
+                        snapshot.forEach((doc) => {
+                            items.push({ id: doc.id, ...doc.data() });
+                        });
+                        
+                        // Sort locally in memory by timestamp created (Rule 2 compliance)
+                        items.sort((a, b) => b.createdAt - a.createdAt);
+                        todos.value = items;
+                        syncing.value = false;
+                    }, (error) => {
+                        console.error("Firestore sync error:", error);
+                        syncing.value = false;
+                    });
+                };
+
+                // Add Todo item
+                const addTodo = async () => {
+                    if (!newTodoText.value.trim() || !userId.value) return;
+                    
+                    const text = newTodoText.value.trim();
+                    newTodoText.value = ""; // clear input UI instantly
+                    
+                    try {
+                        const targetCollection = collection(db, 'artifacts', appId, 'users', userId.value, 'todos');
+                        await addDoc(targetCollection, {
+                            text,
+                            completed: false,
+                            createdAt: Date.now()
+                        });
+                        showToast("已成功建立任務 ✨");
+                    } catch (err) {
+                        console.error("Add todo failed:", err);
+                        showToast("儲存失敗，請重試");
+                    }
+                };
+
+                // Toggle completion checkbox state
+                const toggleTodo = async (todo) => {
+                    if (!userId.value) return;
+                    
+                    try {
+                        const docRef = doc(db, 'artifacts', appId, 'users', userId.value, 'todos', todo.id);
+                        await updateDoc(docRef, {
+                            completed: !todo.completed
+                        });
+                    } catch (err) {
+                        console.error("Update completed state failed:", err);
+                    }
+                };
+
+                // Start Editing local item text
+                const startEdit = (todo) => {
+                    editingId.value = todo.id;
+                    editingText.value = todo.text;
+                    nextTick(() => {
+                        const input = document.getElementById('edit-input-' + todo.id);
+                        if (input) input.focus();
+                    });
+                };
+
+                // Save edited value back to server
+                const saveEdit = async (todo) => {
+                    if (!editingId.value || !userId.value) return;
+                    
+                    const trimmedText = editingText.value.trim();
+                    if (!trimmedText) {
+                        await deleteTodo(todo.id);
+                        cancelEdit();
+                        return;
+                    }
+
+                    const originalId = editingId.value;
+                    cancelEdit(); // optimistic UI close
+
+                    if (trimmedText === todo.text) return;
+
+                    try {
+                        const docRef = doc(db, 'artifacts', appId, 'users', userId.value, 'todos', originalId);
+                        await updateDoc(docRef, {
+                            text: trimmedText
+                        });
+                        showToast("已更新任務內容 ✏️");
+                    } catch (err) {
+                        console.error("Update text failed:", err);
+                    }
+                };
+
+                // Reset editing state
+                const cancelEdit = () => {
+                    editingId.value = null;
+                    editingText.value = "";
+                };
+
+                // Delete a single todo item
+                const deleteTodo = async (id) => {
+                    if (!userId.value) return;
+                    
+                    try {
+                        const docRef = doc(db, 'artifacts', appId, 'users', userId.value, 'todos', id);
+                        await deleteDoc(docRef);
+                        showToast("任務已刪除");
+                    } catch (err) {
+                        console.error("Delete failed:", err);
+                    }
+                };
+
+                // Batch delete completed todos
+                const clearCompleted = async () => {
+                    if (!userId.value) return;
+                    
+                    const completedItems = todos.value.filter(t => t.completed);
+                    if (completedItems.length === 0) return;
+
+                    try {
+                        // Use sequential calls or local loop to ensure Firestore permissions consistency
+                        for (let item of completedItems) {
+                            const docRef = doc(db, 'artifacts', appId, 'users', userId.value, 'todos', item.id);
+                            await deleteDoc(docRef);
+                        }
+                        showToast("已清理所有已完成任務 🧹");
+                    } catch (err) {
+                        console.error("Clear batch failed:", err);
+                    }
+                };
+
+                return {
+                    isLoggedIn,
+                    globalLoading,
+                    authLoading,
+                    syncing,
+                    userId,
+                    userIdShort,
+                    todos,
+                    newTodoText,
+                    currentTab,
+                    errorMsg,
+                    notification,
+                    completionRate,
+                    filteredTodos,
+                    editingId,
+                    editingText,
+                    
+                    getCount,
+                    hasCompleted,
+                    handleLogin,
+                    handleSignOut,
+                    addTodo,
+                    toggleTodo,
+                    startEdit,
+                    saveEdit,
+                    cancelEdit,
+                    deleteTodo,
+                    clearCompleted
+                };
+            }
+        }).mount('#app');
+    </script>
+
+    <!-- Custom Vue Transitions CSS inside file block -->
+    <style>
+        .fade-enter-active,
+        .fade-leave-active {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        .fade-enter-from,
+        .fade-leave-to {
+            opacity: 0;
+            transform: translateY(8px);
+        }
+
+        .list-move,
+        .list-enter-active,
+        .list-leave-active {
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .list-enter-from,
+        .list-leave-to {
+            opacity: 0;
+            transform: scale(0.95) translateY(12px);
+        }
+
+        .list-leave-active {
+            position: absolute;
+            width: calc(100% - 2px);
+        }
+
+        [v-cloak] {
+            display: none;
+        }
+    </style>
+</body>
+</html>
